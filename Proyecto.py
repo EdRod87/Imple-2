@@ -6,19 +6,19 @@ import shutil
 
 import Funcionamiento
 
-# ====== Archivos de configuración de interfaz (Laboratorio 1) ======
+#  
 ARCHIVO_CONFIG = "configuracion.json"
 ARCHIVO_BAK = "configuracion.bak"
 ARCHIVO_TMP = "configuracion.tmp"
 
-# ====== Inicialización de Ventana Principal ======
+# inicia programa
 ventana = tk.Tk()
 ventana.title("Laboratorio 2 - Agenda de Contactos con Acceso Aleatorio")
 ventana.geometry("750x520")
 ventana.configure(bg="#F4F6F9")
 
 
-# ====== Funciones de Persistencia Visual (Lab 1) ======
+# persistencia 
 
 def guardar_datos_json(diccionario_configuracion):
     try:
@@ -82,7 +82,7 @@ def aplicar_configuracion_a_ventana(ventana_principal, titulo_label, subtitulo_l
             pass
 
 
-# ====== Ventana de Gestión de Contactos (CRUD + seek/tell) ======
+# gestion de contactos 
 
 def abrir_ventana_contactos():
     ven_contactos = tk.Toplevel(ventana)
@@ -186,7 +186,7 @@ def abrir_ventana_contactos():
     tk.Button(frame_botones, text="Limpiar", width=9, bg="#95A5A6", fg="white", font=("Helvetica", 10, "bold"), relief="flat", command=limpiar_campos).pack(side="left", padx=5)
 
 
-# ====== Funciones de Menú: Exportar, Herramientas y Ayuda ======
+# funciones de menu 
 
 def accion_exportar_json():
     exito, msg = Funcionamiento.exportar_a_json()
@@ -231,7 +231,7 @@ def accion_ayuda():
     )
 
 
-# ====== Ventana de Settings (Laboratorio 1) ======
+# seting programa 1 
 
 def abrir_settings():
     ventana_settings = tk.Toplevel(ventana)
@@ -302,7 +302,7 @@ def abrir_settings():
     tk.Button(ventana_settings, text="Guardar Configuración", width=25, bg="#2980B9", fg="white", font=("Helvetica", 10, "bold"), relief="flat", command=accion_guardar).pack(pady=25)
 
 
-# ====== Construcción del Menú Principal ======
+# menu principal 
 
 barra_menu = tk.Menu(ventana)
 
@@ -337,7 +337,7 @@ barra_menu.add_cascade(label="Ayuda", menu=menu_ayuda)
 ventana.config(menu=barra_menu)
 
 
-# ====== Contenido de la Ventana Principal ======
+# ventana pr9incipal 
 
 titulo_principal = tk.Label(ventana, text="Laboratorio 2 - Manejo de Archivos", font=("Helvetica", 22, "bold"), bg="#F4F6F9", fg="#2C3E50")
 titulo_principal.pack(pady=(50, 10))
@@ -361,10 +361,10 @@ mensaje = tk.Label(
 )
 mensaje.pack(pady=20)
 
-# 1. Aplicamos estilos guardados del usuario
+# aplciar estulos 
 aplicar_configuracion_a_ventana(ventana, titulo_principal, subtitulo, label_foto, mensaje)
 
-# 2. Verificamos automáticamente la integridad SHA-256 al iniciar la aplicación
+# 2. sha 
 integridad_ok, mensaje_integridad = Funcionamiento.verificar_integridad()
 if not integridad_ok:
     messagebox.showwarning("Alerta de Seguridad al Iniciar", mensaje_integridad)

@@ -1,0 +1,23 @@
+[
+    {
+        "id": "123",
+        "nombre": "Edgar",
+        "telefono": "38546545",
+        "correo": "tumama@gmail.com",
+        "ciudad": "xela"
+    },
+    {
+        "id": "88",
+        "nombre": "Iguano",
+        "telefono": "38515844",
+        "correo": "rods.edaurdo@gmail.com",
+        "ciudad": "Quetzaltenango"
+    },
+    {
+        "id": "777",
+        "nombre": "vegeta",
+        "telefono": "12345624",
+        "correo": "vegeta@gmail.com",
+        "ciudad": "Espana"
+    }
+]

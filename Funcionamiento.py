@@ -11,7 +11,7 @@ try:
 except ImportError:
     FPDF_DISPONIBLE = False
 
-# ================= Constantes y Archivos =================
+# archivos de datos y metadatos 
 ARCHIVO_DATOS = "contactos.dat"
 ARCHIVO_INDICE = "indice.json"
 ARCHIVO_HASH = "contactos.sha256"
@@ -19,7 +19,7 @@ ARCHIVO_EXPORT_JSON = "contactos_exportados.json"
 ARCHIVO_REPORTE_PDF = "reporte_contactos.pdf"
 ARCHIVO_RESPALDO_ZIP = "respaldo_contactos.zip"
 
-# Estructura del registro de tamaño fijo (Total = 100 caracteres)
+# estructira tama{po fijo 100 bytes }
 LONGITUD_CAMPOS = {
     "id": 10,
     "nombre": 30,
@@ -29,9 +29,24 @@ LONGITUD_CAMPOS = {
 }
 TAMAÑO_REGISTRO = sum(LONGITUD_CAMPOS.values())  # 100 bytes en ASCII/UTF-8 básico
 
+def formatear_registro(contacto):
+    """Garantiza exactamente 100 bytes en codificación ASCII."""
+    def ajustar(texto, longitud):
+        limpio = limpiar_ascii(texto).encode("ascii", errors="replace")[:longitud]
+        return limpio.ljust(longitud, b" ")
 
-# ================= 1. Integridad con Hash (SHA-256) =================
+    b_id = ajustar(contacto["id"], LONGITUD_CAMPOS["id"])
+    b_nombre = ajustar(contacto["nombre"], LONGITUD_CAMPOS["nombre"])
+    b_telefono = ajustar(contacto["telefono"], LONGITUD_CAMPOS["telefono"])
+    b_correo = ajustar(contacto["correo"], LONGITUD_CAMPOS["correo"])
+    b_ciudad = ajustar(contacto["ciudad"], LONGITUD_CAMPOS["ciudad"])
 
+    return b_id + b_nombre + b_telefono + b_correo + b_ciudad
+
+
+
+
+#integrirdad sha 
 def calcular_sha256(ruta_archivo):
     """Calcula el hash SHA-256 de un archivo."""
     if not os.path.exists(ruta_archivo):
@@ -57,6 +72,8 @@ def actualizar_hash():
 
 def verificar_integridad():
     """Compara el hash actual de contactos.dat con el almacenado en contactos.sha256."""
+
+
     if not os.path.exists(ARCHIVO_DATOS):
         return True, "El archivo de contactos aún no existe. Integridad inicial limpia."
     
@@ -82,16 +99,28 @@ def verificar_integridad():
         return False, f"Error al verificar integridad: {e}"
 
 
-# ================= 2. Manejo del Índice Primario =================
+#indice primario 
 
 def cargar_indice():
-    """Carga el índice primario desde indice.json."""
+    """Carga el índice primario desde indice.json o lo reconstruye si falla."""
     if os.path.exists(ARCHIVO_INDICE):
         try:
             with open(ARCHIVO_INDICE, "r", encoding="utf-8") as archivo:
                 return json.load(archivo)
-        except (json.JSONDecodeError, PermissionError, Exception):
-            return {}
+        except (json.JSONDecodeError, PermissionError):
+            # Archivo corrupto o sin permisos: intentar reconstruir
+            pass 
+
+    # Si no existe o falló la lectura, pero sí hay datos, reconstruimos
+    if os.path.exists(ARCHIVO_DATOS):
+        exito, _ = reconstruir_indice()
+        if exito:
+            try:
+                with open(ARCHIVO_INDICE, "r", encoding="utf-8") as archivo:
+                    return json.load(archivo)
+            except Exception:
+                return {}
+    
     return {}
 
 def guardar_indice(indice):
@@ -104,7 +133,35 @@ def guardar_indice(indice):
         return False
 
 
-# ================= 3. Registros de Tamaño Fijo y Acceso Aleatorio =================
+    
+
+def reconstruir_indice(): 
+    """Lee contactos.dat de 100 en 100 bytes y reconstruye indice.json si se pierde."""
+    if not os.path.exists(ARCHIVO_DATOS):
+        return False, "No hay datos para reconstruir el índice."
+
+    nuevo_indice = {}
+    tamano_total = os.path.getsize(ARCHIVO_DATOS)
+    total_registros = tamano_total // TAMAÑO_REGISTRO
+
+    try:
+        with open(ARCHIVO_DATOS, "r", encoding="utf-8") as archivo:
+            for num_registro in range(total_registros):
+                archivo.seek(num_registro * TAMAÑO_REGISTRO)
+                registro = archivo.read(TAMAÑO_REGISTRO)
+                
+                if len(registro) == TAMAÑO_REGISTRO:
+                    contacto = desempaquetar_registro(registro)
+                    id_str = str(contacto["id"])
+                    if id_str:  # Si el ID extraído es válido
+                        nuevo_indice[id_str] = num_registro
+        
+        guardar_indice(nuevo_indice)
+        actualizar_hash() # Aseguramos que el hash cuadre tras la reconstrucción
+        return True, f"Índice reconstruido con éxito ({len(nuevo_indice)} contactos)."
+    except Exception as e:
+        return False, f"Fallo al reconstruir: {e}"
+# =acceso aleatorio y modificación in-place (seek) = 
 
 def limpiar_ascii(texto):
     """Reemplaza tildes/ñ para asegurar que 1 caracter = 1 byte exacto en UTF-8."""
@@ -230,7 +287,7 @@ def modificar_contacto(id_contacto, nuevo_nombre, nuevo_telefono, nuevo_correo, 
         return False, f"Error al modificar contacto: {e}"
 
 
-# ================= 4. Exportación a JSON y PDF =================
+# yeison 
 
 def exportar_a_json():
     """Exporta todos los contactos usando el índice hacia un archivo JSON."""
@@ -306,33 +363,31 @@ def generar_reporte_pdf():
         return False, f"Error al generar PDF: {e}"
 
 
-# ================= 5. Respaldo Comprimido (ZIP) y Metadatos =================
+# respaldo comprimido (ZIP) y metadatos 
 
 def crear_respaldo_zip():
     """Comprime contactos.dat e indice.json en un ZIP y compara tamaños."""
-    if not os.path.exists(ARCHIVO_DATOS) or not os.path.exists(ARCHIVO_INDICE):
+    if not (os.path.exists(ARCHIVO_DATOS) and os.path.exists(ARCHIVO_INDICE)):
         return False, "Debes tener contactos registrados antes de crear un respaldo."
 
     try:
-        tam_original = os.path.getsize(ARCHIVO_DATOS) + os.path.getsize(ARCHIVO_INDICE)
-        
         with zipfile.ZipFile(ARCHIVO_RESPALDO_ZIP, "w", zipfile.ZIP_DEFLATED) as archivo_zip:
             archivo_zip.write(ARCHIVO_DATOS)
             archivo_zip.write(ARCHIVO_INDICE)
             
+        tam_original = os.path.getsize(ARCHIVO_DATOS) + os.path.getsize(ARCHIVO_INDICE)
         tam_comprimido = os.path.getsize(ARCHIVO_RESPALDO_ZIP)
-        ahorro = tam_original - tam_comprimido
-        porcentaje = (ahorro / tam_original * 100) if tam_original > 0 else 0
+        porcentaje = ((tam_original - tam_comprimido) / tam_original * 100) if tam_original else 0
 
-        mensaje = (
+        return True, (
             f"Respaldo '{ARCHIVO_RESPALDO_ZIP}' creado con éxito.\n\n"
             f"• Tamaño original (datos + índice): {tam_original} bytes\n"
             f"• Tamaño comprimido (ZIP): {tam_comprimido} bytes\n"
             f"• Reducción: {porcentaje:.1f}%"
         )
-        return True, mensaje
     except Exception as e:
         return False, f"Error al crear respaldo ZIP: {e}"
+
 
 def obtener_info_archivo():
     """Devuelve tamaño, fecha de modificación y permisos usando os.stat y os.access."""
@@ -340,21 +395,98 @@ def obtener_info_archivo():
         return "El archivo 'contactos.dat' aún no existe.\nAgrega al menos un contacto para ver sus metadatos."
 
     try:
-        estadisticas = os.stat(ARCHIVO_DATOS)
-        tamano = estadisticas.st_size
-        total_registros = tamano // TAMAÑO_REGISTRO
-        fecha_mod = datetime.fromtimestamp(estadisticas.st_mtime).strftime("%d/%m/%Y %H:%M:%S")
+        st = os.stat(ARCHIVO_DATOS)
+        check_perm = lambda flag: "Sí (Permitido)" if os.access(ARCHIVO_DATOS, flag) else "No (Denegado)"
         
-        permiso_lectura = "Sí (Permitido)" if os.access(ARCHIVO_DATOS, os.R_OK) else "No (Denegado)"
-        permiso_escritura = "Sí (Permitido)" if os.access(ARCHIVO_DATOS, os.W_OK) else "No (Denegado)"
-
         return (
             f"Archivo analizado: {ARCHIVO_DATOS}\n"
             f"----------------------------------------\n"
-            f"• Tamaño total: {tamano} bytes ({total_registros} registros de {TAMAÑO_REGISTRO} bytes)\n"
-            f"• Última modificación: {fecha_mod}\n"
-            f"• Permiso de lectura (os.R_OK): {permiso_lectura}\n"
-            f"• Permiso de escritura (os.W_OK): {permiso_escritura}"
+            f"• Tamaño total: {st.st_size} bytes ({st.st_size // TAMAÑO_REGISTRO} registros de {TAMAÑO_REGISTRO} bytes)\n"
+            f"• Última modificación: {datetime.fromtimestamp(st.st_mtime).strftime('%d/%m/%Y %H:%M:%S')}\n"
+            f"• Permiso de lectura (os.R_OK): {check_perm(os.R_OK)}\n"
+            f"• Permiso de escritura (os.W_OK): {check_perm(os.W_OK)}"
         )
     except Exception as e:
         return f"No se pudieron obtener los metadatos: {e}"
+
+
+def menu():
+    # inicio 
+    valido, mensaje = verificar_integridad()
+    print("\n" + "=" * 50)
+    print("ESTADO DE INTEGRIDAD DEL SISTEMA:")
+    print(mensaje)
+    print("=" * 50)
+
+    while True:
+        print("\n--- AGENDA DE CONTACTOS ---")
+        print("1. Agregar contacto")
+        print("2. Buscar contacto por ID")
+        print("3. Modificar contacto")
+        print("4. Exportar a JSON y generar PDF")
+        print("5. Respaldo comprimido (ZIP)")
+        print("6. Información del archivo (Metadatos/Permisos)")
+        print("7. Reconstruir índice primario")
+        print("8. Salir")
+
+        op = input("\nSeleccione una opción: ").strip()
+
+        if op == "1":
+            cid = input("ID: ").strip()
+            nom = input("Nombre: ").strip()
+            tel = input("Teléfono: ").strip()
+            cor = input("Correo: ").strip()
+            ciu = input("Ciudad: ").strip()
+            ok, msg = agregar_contacto(cid, nom, tel, cor, ciu)
+            print(f"\nResultado: {msg}")
+
+        elif op == "2":
+            cid = input("Ingrese el ID a buscar: ").strip()
+            res, msg = buscar_contacto(cid)
+            if res:
+                print(f"\nContacto encontrado (Registro #{res.get('numero_registro')}):")
+                print(f"-> Posición exacta obtenida con tell(): byte {res.get('posicion_lectura')}")
+                print(f"ID: {res['id']} | Nombre: {res['nombre']} | Tel: {res['telefono']} | Correo: {res['correo']} | Ciudad: {res['ciudad']}")
+            else:
+                print(f"\nAVISO: {msg}")
+
+        elif op == "3":
+            cid = input("Ingrese el ID a modificar: ").strip()
+            res, _ = buscar_contacto(cid)
+            if not res:
+                print(f"\nAVISO: No se puede modificar. El ID '{cid}' no existe en el sistema.")
+                continue
+
+            print(f"Modificando contacto actual: {res['nombre']}")
+            nom = input("Nuevo nombre: ").strip()
+            tel = input("Nuevo teléfono: ").strip()
+            cor = input("Nuevo correo: ").strip()
+            ciu = input("Nueva ciudad: ").strip()
+            ok, msg = modificar_contacto(cid, nom, tel, cor, ciu)
+            print(f"\nResultado: {msg}")
+
+        elif op == "4":
+            print("\nGenerando exportación y reporte...")
+            ok_pdf, msg_pdf = generar_reporte_pdf()
+            print(msg_pdf)
+
+        elif op == "5":
+            ok, msg = crear_respaldo_zip()
+            print(f"\n{msg}")
+
+        elif op == "6":
+            print(f"\n{obtener_info_archivo()}")
+
+        elif op == "7":
+            ok, msg = reconstruir_indice()
+            print(f"\n{msg}")
+
+        elif op == "8":
+            print("\nCerrando aplicación.")
+            break
+
+        else:
+            print("\nOpción no válida. Intente de nuevo.")
+
+if __name__ == "__main__":
+    menu()
